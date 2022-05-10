@@ -2,7 +2,9 @@
 
 Tool to download all Lamba functions and their code bases in an AWS region.
 
-v2.0 new and improved! ditched all reliance on external programs, tidied up the code (thanks fich!) and added pretty colours.
+v2.0 new and improved! 
+
+Ditched all reliance on external programs, tidied up the code (thanks fich!) and added pretty colours.
 
 
 ```
