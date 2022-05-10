@@ -18,7 +18,7 @@
 
 v2.0 new and improved! 
 
-Ditched all reliance on external programs, tidied up the code (thanks fich!) and added pretty colours.
+Ditched all reliance on external programs and added pretty colours.
 
 
 ```
