@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 #
 # AWS Lambda Code Grabber
-# v1.0 - TJ
-#
+# v1.0 - TJ - Initial version!
+# v2.0 - TJ - New version after months of guilt for not using boto
 # Grab all Lambda code bases in one mighty swoop
-# Yes yes, it is just a wrapper around aws :)
+# 
 #
+import errno
 import os
 import sys
-import subprocess
-import errno
-import json
 import argparse
-
-# Requirements
-AWS="/usr/local/bin/aws"
-JQ="/usr/bin/jq"
+import boto3
+from botocore.config import Config
+import requests
 
 # Define the directory that's going to store all this
 FUNDIR="functions"
@@ -36,23 +33,14 @@ def banner():
           |||  |||`-'._.--._.-'
                      |||  |||
 
-             \033[0;32mLambshank v1.0 
+             \033[0;32mLambshank v2.0 
        Lambda Functions Downloader\033[0m
 
 
 """)
 
 
-def setvars(profile, region):
-    if profile is not None:
-        profile = " --profile " + profile
-    else:
-        profile = ""
-    if region is not None:
-        region = " --region " + region
-    return(profile,region)
-
-def createbase():
+def create_base():
     print("Making Functions Directory: " + FUNDIR)
     try:
         os.mkdir(FUNDIR)
@@ -62,7 +50,7 @@ def createbase():
             sys.exit()
     try:
         os.chdir(FUNDIR)
-        print("Current working directory: {0}".format(os.getcwd()))
+        #print("Current working directory: {0}".format(os.getcwd()))
     except FileNotFoundError:
         print("Directory: {0} does not exist".format(path))
     except NotADirectoryError:
@@ -70,68 +58,95 @@ def createbase():
     except PermissionError:
         print("You do not have permissions to change to {0}".format(path))
 
-def checkident(profile,region):
-    print("Checking all our ducks are in a row, verifying STS identity:")
-    sts = subprocess.check_output(AWS + profile + region  + " sts get-caller-identity", shell=True);
-    print("\n" + str(json.loads(sts)))
-    checksts = input('\nEverything look good? (y/n):').lower()
-    if checksts.startswith('y'):
-        pass
-    else:
+def check_ident():
+    print("\033[0;32mChecking all our sheep are in a row, verifying STS identity:\033[0m")
+    stsclient = boto3.client('sts', config=shank_config)
+    sts = stsclient.get_caller_identity()
+    print("""
+	Access Key  = """ + sts['UserId'] + """
+	AWS Account = """ + sts['Account'] + """
+	User ARN    = """ + sts['Arn'] + """
+""")
+
+    checksts = input('\n\033[0;32mEverything look good? (y/n):\033[0m').lower()
+    if not checksts.startswith('y'):
         print("ok buhbye")
         sys.exit()
 
-def listfunctions(profile,region):
-    print("Listing discovered functions:")
-    funcs = subprocess.check_output(AWS + profile + region + " lambda list-functions --output json | "+JQ+" '.Functions[].FunctionName' | sed 's/\"//g' >> all-lambda-functions.txt", shell=True);
+def list_functions():
+    print("\n\033[0;32mListing discovered functions:\033[0m")
+    funcsclient = boto3.client('lambda', config=shank_config)
+    funcs = funcsclient.list_functions()
+    file = open("all-lambda-functions.txt", "w")
+    for item in funcs['Functions']:
+        print(item['FunctionName'])
+        file.write(item['FunctionName']+"\n")
+    file.close
 
-
-def pullfunctions(profile,region):
-    file = open("all-lambda-functions.txt","r")
+def pull_functions():
+    print("\n\033[0;32mPulling Function Configurations:\033[0m")
+    file = open("all-lambda-functions.txt")
     line = file.readline().rstrip('\n')
+    funcsclient = boto3.client('lambda', config=shank_config)
+
+
     while line:
         print("Pulling function config: " + line)
         os.mkdir(line)
         os.chdir(line)
-        getfunc = subprocess.check_output(AWS + profile + region + " lambda get-function --function " + line + "  >> function-config.txt", shell=True);
+        funcsdetail = funcsclient.get_function(FunctionName= line)
+        #print(funcsdetail['Configuration']['FunctionName'])
+        file2 = open(str(funcsdetail['Configuration']['FunctionName'])+".json", "w")
+        file2.write(str(funcsdetail['Configuration']))
+        file2.close
         os.chdir("..")
         line = file.readline().rstrip('\n')
-
     file.close()
 
 
-def pullcode():
-    file = open("all-lambda-functions.txt","r")
+def pull_code():
+    print("\n\033[0;32mPulling Function Code:\033[0m")
+    file = open("all-lambda-functions.txt")
     line = file.readline().rstrip('\n')
+    codeclient = boto3.client('lambda', config=shank_config)
     while line:
         print("Pulling function code: " + line)
+        codedetail = codeclient.get_function(FunctionName= line)
         os.chdir(line)
-        getcodeurl = subprocess.check_output(JQ + "  '.Code.Location' function-config.txt | sed 's/\"//g' >> function-codeurl.txt", shell=True);
-        getcode = subprocess.check_output("wget -i function-codeurl.txt -O function-code.zip", shell=True);
+        codeurl = codedetail['Code']['Location']
+        codefile = requests.get(codeurl)
+        open(str(codedetail['Configuration']['FunctionName'])+".zip", 'wb').write(codefile.content)
         os.chdir("..")
         line = file.readline().rstrip('\n')
 
     file.close()
-
 
 if __name__ == "__main__":
 
     banner()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--profile", help="Specify a specific profile")
     parser.add_argument("--region", help="Specify a specific region", required=True)
     args = parser.parse_args()
 
-    profile, region = setvars(args.profile, args.region)
+    region = args.region
 
-    createbase()
+    shank_config = Config(
+        region_name = region,
+        retries = {
+            'max_attempts': 10,
+            'mode': 'standard'
+        }
+    )
     
-    checkident(profile,region)
-
-    listfunctions(profile,region)
-
-    pullfunctions(profile,region)
+    check_ident()
     
-    pullcode()
+    create_base()
 
+    list_functions()
+
+    pull_functions()
+    
+    pull_code()
+
+    print("\n\033[0;32mw00t w00t - all done:\033[0m")
