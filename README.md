@@ -1,6 +1,18 @@
 # Lambshank
 
-Tool to download all Lamba functions and their code bases in an AWS region.
+           __  _
+       .-.'  `; `-._  __  _
+      (_,         .-:'  `; `-._
+    ,'o"(        (_,           )
+   (__,-'      ,'o"(            )>
+      (       (__,-'            )
+       `-'._.--._(             )
+          |||  |||`-'._.--._.-'
+                     |||  |||
+
+             Lambshank v2.0 
+       Lambda Functions Downloader
+
 
 v2.0 new and improved! 
 
