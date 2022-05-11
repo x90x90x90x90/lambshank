@@ -28,3 +28,5 @@ options:
   -h, --help       show this help message and exit
   --region REGION  Specify a specific region
 ```
+
+![Demo](/lambshank-v2-demo.gif "Demo")
